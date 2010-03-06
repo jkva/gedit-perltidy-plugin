@@ -1,0 +1,8 @@
+[Perltidy Plugin]
+Loader=python
+Module=perltidy
+IAge=2
+Name=PerlTidy
+Description=Run your data through perltidy
+Authors=Job van Achterberg <jkva@cpan.org>
+Copyright=Copyright © 2010 Job van Achterberg <jkva@cpan.org>
