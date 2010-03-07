@@ -1,4 +1,4 @@
-[Perltidy Plugin]
+[Gedit Plugin]
 Loader=python
 Module=perltidy
 IAge=2
