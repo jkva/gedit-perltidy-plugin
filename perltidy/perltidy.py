@@ -30,61 +30,45 @@ import tempfile
 import time
 import subprocess
 
-# Menu item example, insert a new item in the Tools menu
-ui_str = """<ui>
-  <menubar name="MenuBar">
-    <menu name="ToolsMenu" action="Tools">
-      <placeholder name="ToolsOps_2">
-        <menuitem name="PerltidyPlugin" action="PerltidyPlugin"/>
-      </placeholder>
-    </menu>
-  </menubar>
-</ui>
-"""
+from warnings import warn
 
 class WindowHandler:
     def __init__(self, plugin, window):
         self._window = window
         self._plugin = plugin
-
-        # Insert menu items
         self._insert_menu()
 
     def deactivate(self):
-        # Remove any installed menu items
         self._remove_menu()
-
-        self._window = None
-        self._plugin = None
-        self._action_group = None
+        self._window = self._plugin = self._action_group = None
 
     def _insert_menu(self):
-        # Get the GtkUIManager
         manager = self._window.get_ui_manager()
 
-        # Create a new action group
         self._action_group = gtk.ActionGroup("PerltidyPluginActions")
         self._action_group.add_actions([("PerltidyPlugin", None, _("Run PerlTidy"),
                                          None, _("Run through PerlTidy"),
                                          self.tidy)])
 
-        # Insert the action group
         manager.insert_action_group(self._action_group, -1)
 
-        # Merge the UI
+        ui_str = """<ui>
+            <menubar name="MenuBar">
+                <menu name="ToolsMenu" action="Tools">
+                    <placeholder name="ToolsOps_2">
+                        <menuitem name="PerltidyPlugin" action="PerltidyPlugin"/>
+                    </placeholder>
+                    </menu>
+            </menubar>
+        </ui>
+        """
+
         self._ui_id = manager.add_ui_from_string(ui_str)
 
     def _remove_menu(self):
-        # Get the GtkUIManager
         manager = self._window.get_ui_manager()
-
-        # Remove the ui
         manager.remove_ui(self._ui_id)
-
-        # Remove the action group
         manager.remove_action_group(self._action_group)
-
-        # Make sure the manager updates
         manager.ensure_update()
 
     def update_ui(self):
@@ -93,26 +77,31 @@ class WindowHandler:
     def tidy(self, action):
         doc = self._window.get_active_document()
         if not doc : return
-        tidied_text = self.tidy_text( doc.get_text( doc.get_start_iter(),doc.get_end_iter() ) );
+
+        start, end = doc.get_start_iter(), doc.get_end_iter()
+        tidied_text = self.tidy_text( doc.get_text( start, end ) );
         doc.set_text( tidied_text )
         
     def tidy_text(self, doc_text):
         finput  = tempfile.NamedTemporaryFile(delete = False)
-        foutput_name = tempfile.NamedTemporaryFile(delete = False).name
+        foutput = tempfile.NamedTemporaryFile(delete = False)
+            
+        foutput.close()
 
         finput.write(doc_text)
         finput.close()
 
-        shell_args = ['perltidy',finput.name,'-o',foutput_name]
+        shell_args = ['perltidy',finput.name,'-o',foutput.name]
         
-        subprocess.Popen(shell_args)
-        
-        foutput = open(foutput_name,'r')
-        tidied_text = foutput.read()
+        subproc = subprocess.Popen(shell_args)
+        subproc.wait()        
+
+        foutput = open(foutput.name,'r')
+        tidied_text = foutput.read()        
         foutput.close()
     
         os.remove(finput.name)
-        os.remove(foutput_name)
+        os.remove(foutput.name)
            
         return tidied_text
     
@@ -130,4 +119,12 @@ class PerlTidyPlugin(gedit.Plugin):
 
     def update_ui(self, window):
         self._instances[window].update_ui()
+
+    def is_configurable(self):
+        return True
+
+    def create_configure_dialog(self):
+        dialog = gtk.Dialog("PerlTidy Plugin" + _(" Configuration"))
+        # needs gtk code
+        return dialog
         
