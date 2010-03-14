@@ -29,6 +29,7 @@ import os
 import tempfile
 import time
 import subprocess
+import pickle
 
 from warnings import warn
 
@@ -91,7 +92,10 @@ class WindowControl:
         finput.write(doc_text)
         finput.close()
 
+        
+
         shell_args = ['perltidy',finput.name,'-o',foutput.name]
+        shell_args.push( rc_file_settings )
         
         subprocess.Popen(shell_args).wait()
 
@@ -105,41 +109,85 @@ class WindowControl:
         return tidied_text
 
 class PluginConfig:
+    config_file = os.path.expanduser('~/.gnome2/gedit/plugins/perltidy.conf')
+
     def __init__(self, plugin):
         self._plugin = plugin
+
+    def _on_checkbox_toggle(self, widget, data):
+        if data == 'use_cfg':
+            self.widgets.get('use_cfg_file').set_sensitive( widget.get_active() and True or False )
     
     def dialog(self):
         buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
         dialog  = gtk.Dialog("PerlTidy Plugin " + _("configuration"),buttons=buttons)
-        dialog.set_default_size(320,240)
 
         def on_btn_click(self, response_id, parent): 
             if response_id == gtk.RESPONSE_ACCEPT:
-                parent.save_settings()
+                parent._save_settings()
             self.destroy()      
-
-        dialog.connect('response',on_btn_click,self)
         
-        self.__setting_data__ = dict()
-        settings = self.settings
+        self.__setting_data__ = {}
+        settings = self.settings()
 
-        dialog.add_action_widget(self.create_widgets(),5)
+        self.widgets = self._create_widgets()
+        self._apply_current_settings()
+
+        for widget in self.widgets.itervalues():
+            dialog.vbox.add(widget)
+
+        dialog.connect('response', on_btn_click, self)
+        dialog.show_all()
+        dialog.set_resizable(False)
+        
         return dialog
 
-    def create_widgets(self):
-        widget = gtk.Entry()
-        widget.set_text( self.settings().get('cfg','foo') )
-        return widget
+    def _create_widgets(self):        
+        cfg_entry = gtk.Entry()
+        widgets = {
+            'apply_to_select' : gtk.CheckButton( _("Apply to _selection if available") ),
+            'use_cfg'         : gtk.CheckButton( _("Use custom _configuration file (e.g. " + os.path.expanduser('~/.perltidyrc') + ")") ),
+            'use_cfg_file'    : cfg_entry,
+        }
+        widgets.get('use_cfg').connect('toggled',self._on_checkbox_toggle, 'use_cfg')
+        return widgets
 
+    def _apply_current_settings(self):
+        self._load_settings_from_file()
+        widgets  = self.widgets
+        settings = self.settings()
+        widgets.get('use_cfg').set_active(settings.get('use_cfg') or False)
+        widgets.get('apply_to_select').set_active(settings.get('apply_to_select') or False)
+        widgets.get('use_cfg_file').set_text(os.path.expanduser(settings.get('use_cfg_file')) or os.path.expanduser('~/.perltidyrc'))
+
+        widgets.get('use_cfg').toggled()
+        
     def settings(self, conf=None): # get/set
         if not conf : return self.__setting_data__
-        # do some hash merging here with setting_data
+        self.__setting_data__.update(conf)
         return self.__setting_data__
         
-    def save_settings(self):
-        #get widget values, construct hash  
-        conf = dict()        
+    def _save_settings(self):          
+        conf = {
+            'use_cfg_file'   : self.widgets.get('use_cfg_file').get_text(),
+            'use_cfg'        : self.widgets.get('use_cfg').get_active(),
+            'apply_to_select': self.widgets.get('apply_to_select').get_active(),
+        }
         self.settings(conf)    
+        self._commit_settings_to_file()
+    
+    def _load_settings_from_file(self):
+        if not os.path.exists(self.config_file): return
+        f = open(self.config_file,'r')
+        settings = pickle.load(f)
+        f.close()
+        self.settings(settings)
+        
+    def _commit_settings_to_file(self):
+        if not os.path.exists(self.config_file): f = open(self.config_file,'w').close() #create first
+        f = open(self.config_file,'w')
+        f.write(pickle.dumps(self.settings()))
+        f.close()        
 
 class PerlTidyPlugin(gedit.Plugin):
     def __init__(self):
