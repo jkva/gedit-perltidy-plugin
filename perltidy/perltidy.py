@@ -32,7 +32,7 @@ import subprocess
 
 from warnings import warn
 
-class WindowHandler:
+class WindowControl:
     def __init__(self, plugin, window):
         self._window = window
         self._plugin = plugin
@@ -93,8 +93,7 @@ class WindowHandler:
 
         shell_args = ['perltidy',finput.name,'-o',foutput.name]
         
-        subproc = subprocess.Popen(shell_args)
-        subproc.wait()        
+        subprocess.Popen(shell_args).wait()
 
         foutput = open(foutput.name,'r')
         tidied_text = foutput.read()        
@@ -104,14 +103,51 @@ class WindowHandler:
         os.remove(foutput.name)
            
         return tidied_text
+
+class PluginConfig:
+    def __init__(self, plugin):
+        self._plugin = plugin
     
+    def dialog(self):
+        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
+        dialog  = gtk.Dialog("PerlTidy Plugin " + _("configuration"),buttons=buttons)
+        dialog.set_default_size(320,240)
+
+        def on_btn_click(self, response_id, parent): 
+            if response_id == gtk.RESPONSE_ACCEPT:
+                parent.save_settings()
+            self.destroy()      
+
+        dialog.connect('response',on_btn_click,self)
+        
+        self.__setting_data__ = dict()
+        settings = self.settings
+
+        dialog.add_action_widget(self.create_widgets(),5)
+        return dialog
+
+    def create_widgets(self):
+        widget = gtk.Entry()
+        widget.set_text( self.settings().get('cfg','foo') )
+        return widget
+
+    def settings(self, conf=None): # get/set
+        if not conf : return self.__setting_data__
+        # do some hash merging here with setting_data
+        return self.__setting_data__
+        
+    def save_settings(self):
+        #get widget values, construct hash  
+        conf = dict()        
+        self.settings(conf)    
+
 class PerlTidyPlugin(gedit.Plugin):
     def __init__(self):
         gedit.Plugin.__init__(self)
         self._instances = {}
 
     def activate(self, window):
-        self._instances[window] = WindowHandler(self, window)
+        self._instances[window] = WindowControl(self, window)
 
     def deactivate(self, window):
         self._instances[window].deactivate()
@@ -120,11 +156,12 @@ class PerlTidyPlugin(gedit.Plugin):
     def update_ui(self, window):
         self._instances[window].update_ui()
 
+    def settings(self):
+        return PluginConfig(self).settings()
+
     def is_configurable(self):
         return True
 
     def create_configure_dialog(self):
-        dialog = gtk.Dialog("PerlTidy Plugin" + _(" Configuration"))
-        # needs gtk code
-        return dialog
-        
+        return PluginConfig(self).dialog()       
+
