@@ -1,0 +1,15 @@
+INSTALL for gedit PerlTidy plugin v1.0
+--------------------------------------
+copy __init.py__ and the perltidy directory 
+to your gedit plugin directory, usually
+~/.gnome2/gedit/plugins. Restart gedit.
+
+Edit->Preferences->[Tab]Plugins->PerlTidy
+    Options:
+        [X] Apply to selection only
+            only the selected text (if applicable) is tidied
+        [X] Use custom configuration file
+            If you have a config file for perltidy that you
+            want to include, enter it in the textbox
+           
+Tools->Run Perltidy
