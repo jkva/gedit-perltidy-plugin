@@ -33,6 +33,16 @@ import pickle
 
 from warnings import warn
 
+
+def error_message(message):
+    def msg_on_close_destroy(button,response_id,dialog):
+        if response_id == gtk.RESPONSE_CLOSE: 
+            dialog.destroy()
+
+    msg_dialog = gtk.MessageDialog(flags = gtk.DIALOG_MODAL, buttons = gtk.BUTTONS_CLOSE, type = gtk.MESSAGE_ERROR, message_format = message)
+    msg_dialog.connect('response', msg_on_close_destroy, msg_dialog)
+    msg_dialog.run()
+
 class WindowControl:
     def __init__(self, plugin, window):
         self._window = window
@@ -78,12 +88,13 @@ class WindowControl:
     def tidy(self, action):
         doc = self._window.get_active_document()
         if not doc : return
-
         start, end = doc.get_start_iter(), doc.get_end_iter()
         tidied_text = self.tidy_text( doc.get_text( start, end ) );
         doc.set_text( tidied_text )
         
     def tidy_text(self, doc_text):
+        if(text == None or text == ''): return
+
         finput  = tempfile.NamedTemporaryFile(delete = False)
         foutput = tempfile.NamedTemporaryFile(delete = False)
             
@@ -92,10 +103,16 @@ class WindowControl:
         finput.write(doc_text)
         finput.close()
 
-        
+        s = self._plugin.settings()
 
         shell_args = ['perltidy',finput.name,'-o',foutput.name]
-        shell_args.push( rc_file_settings )
+
+        if s.get('use_cfg') and not s.get('use_cfg_file') == '':
+            if not os.path.exists(s.get('use_cfg_file')):
+                error_message(_("Configuration file " + s.get('use_cfg_file') + " does not exist"))
+                return
+            else:        
+                shell_args.append( "-pro="+s.get('use_cfg_file') )
         
         subprocess.Popen(shell_args).wait()
 
@@ -110,6 +127,7 @@ class WindowControl:
 
 class PluginConfig:
     config_file = os.path.expanduser('~/.gnome2/gedit/plugins/perltidy.conf')
+    __setting_data__ = None
 
     def __init__(self, plugin):
         self._plugin = plugin
@@ -120,15 +138,16 @@ class PluginConfig:
     
     def dialog(self):
         buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
-        dialog  = gtk.Dialog("PerlTidy Plugin " + _("configuration"),buttons=buttons)
+        dialog  = gtk.Dialog("PerlTidy Plugin " + _("configuration"),buttons = buttons)
 
-        def on_btn_click(self, response_id, parent): 
+        def on_btn_click(dialog, response_id, data): 
+            if response_id == gtk.RESPONSE_CLOSE: return # not triggered by msgbox close
             if response_id == gtk.RESPONSE_ACCEPT:
-                parent._save_settings()
-            self.destroy()      
+                data.get('parent')._save_settings()
+            warn('hier')
+            data.get('dialog').destroy()      
         
-        self.__setting_data__ = {}
-        settings = self.settings()
+        self.settings()        
 
         self.widgets = self._create_widgets()
         self._apply_current_settings()
@@ -136,7 +155,7 @@ class PluginConfig:
         for widget in self.widgets.itervalues():
             dialog.vbox.add(widget)
 
-        dialog.connect('response', on_btn_click, self)
+        dialog.connect('response', on_btn_click, {'dialog':dialog,'parent':self})
         dialog.show_all()
         dialog.set_resizable(False)
         
@@ -153,7 +172,6 @@ class PluginConfig:
         return widgets
 
     def _apply_current_settings(self):
-        self._load_settings_from_file()
         widgets  = self.widgets
         settings = self.settings()
         widgets.get('use_cfg').set_active(settings.get('use_cfg') or False)
@@ -162,8 +180,11 @@ class PluginConfig:
 
         widgets.get('use_cfg').toggled()
         
-    def settings(self, conf=None): # get/set
-        if not conf : return self.__setting_data__
+    def settings(self, conf = None): # get/set
+        if self.__setting_data__ == None: 
+            self.__setting_data__ = {}
+            self._load_settings_from_file()
+        if not conf: return self.__setting_data__
         self.__setting_data__.update(conf)
         return self.__setting_data__
         
@@ -173,6 +194,9 @@ class PluginConfig:
             'use_cfg'        : self.widgets.get('use_cfg').get_active(),
             'apply_to_select': self.widgets.get('apply_to_select').get_active(),
         }
+        if conf.get('use_cfg') and conf.get('use_cfg_file') == '':
+            error_message(_("Please enter a configuration file to use."))
+            return
         self.settings(conf)    
         self._commit_settings_to_file()
     
