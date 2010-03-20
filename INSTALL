@@ -1,6 +1,6 @@
 INSTALL for gedit PerlTidy plugin v1.0
 --------------------------------------
-copy __init.py__ and the perltidy directory 
+copy the .desktop file and the perltidy directory 
 to your gedit plugin directory, usually
 ~/.gnome2/gedit/plugins. Restart gedit.
 
