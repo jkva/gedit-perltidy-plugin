@@ -31,9 +31,6 @@ import time
 import subprocess
 import pickle
 
-from warnings import warn
-
-
 def error_message(message):
     def msg_on_close_destroy(button,response_id,dialog):
         if response_id == gtk.RESPONSE_CLOSE: 
@@ -88,12 +85,19 @@ class WindowControl:
     def tidy(self, action):
         doc = self._window.get_active_document()
         if not doc : return
-        start, end = doc.get_start_iter(), doc.get_end_iter()
-        tidied_text = self.tidy_text( doc.get_text( start, end ) );
-        doc.set_text( tidied_text )
+
+        if self._plugin.settings().get('apply_to_select') and len(doc.get_selection_bounds()): #do we want to apply to, and have, a selection?
+            start_iter, end_iter = doc.get_selection_bounds()
+        else:            
+            start_iter, end_iter = doc.get_start_iter(), doc.get_end_iter()
+        if start_iter.compare(end_iter) == 0 : return #position the same, nothing to operate on
+        tidied_text = self.tidy_text( doc.get_text( start_iter, end_iter ) )
+        
+        doc.delete(start_iter, end_iter)
+        doc.insert(start_iter,tidied_text)
         
     def tidy_text(self, doc_text):
-        if(text == None or text == ''): return
+        if doc_text == None or doc_text == '' : return
 
         finput  = tempfile.NamedTemporaryFile(delete = False)
         foutput = tempfile.NamedTemporaryFile(delete = False)
@@ -127,7 +131,7 @@ class WindowControl:
 
 class PluginConfig:
     config_file = os.path.expanduser('~/.gnome2/gedit/plugins/perltidy.conf')
-    __setting_data__ = None
+    _setting_data = None
 
     def __init__(self, plugin):
         self._plugin = plugin
@@ -144,7 +148,6 @@ class PluginConfig:
             if response_id == gtk.RESPONSE_CLOSE: return # not triggered by msgbox close
             if response_id == gtk.RESPONSE_ACCEPT:
                 data.get('parent')._save_settings()
-            warn('hier')
             data.get('dialog').destroy()      
         
         self.settings()        
@@ -165,7 +168,7 @@ class PluginConfig:
         cfg_entry = gtk.Entry()
         widgets = {
             'apply_to_select' : gtk.CheckButton( _("Apply to _selection if available") ),
-            'use_cfg'         : gtk.CheckButton( _("Use custom _configuration file (e.g. " + os.path.expanduser('~/.perltidyrc') + ")") ),
+            'use_cfg'         : gtk.CheckButton( _("Use custom _configuration file (e.g. " + os.path.expanduser('~/.perltidyrc') + ")" ) ),
             'use_cfg_file'    : cfg_entry,
         }
         widgets.get('use_cfg').connect('toggled',self._on_checkbox_toggle, 'use_cfg')
@@ -174,19 +177,26 @@ class PluginConfig:
     def _apply_current_settings(self):
         widgets  = self.widgets
         settings = self.settings()
+    
+        s = settings.get('use_cfg_file')
+
+        if s:
+            use_cfg_file = s.startswith('~') and os.path.expanduser(s) or s
+        else:
+            use_cfg_file = os.path.expanduser('~/.perltidyrc')
+
         widgets.get('use_cfg').set_active(settings.get('use_cfg') or False)
         widgets.get('apply_to_select').set_active(settings.get('apply_to_select') or False)
-        widgets.get('use_cfg_file').set_text(os.path.expanduser(settings.get('use_cfg_file')) or os.path.expanduser('~/.perltidyrc'))
-
+        widgets.get('use_cfg_file').set_text(use_cfg_file)
         widgets.get('use_cfg').toggled()
         
-    def settings(self, conf = None): # get/set
-        if self.__setting_data__ == None: 
-            self.__setting_data__ = {}
+    def settings(self, conf = None):
+        if self._setting_data == None: 
+            self._setting_data = {}
             self._load_settings_from_file()
-        if not conf: return self.__setting_data__
-        self.__setting_data__.update(conf)
-        return self.__setting_data__
+        if not conf: return self._setting_data
+        self._setting_data.update(conf)
+        return self._setting_data
         
     def _save_settings(self):          
         conf = {
@@ -202,14 +212,27 @@ class PluginConfig:
     
     def _load_settings_from_file(self):
         if not os.path.exists(self.config_file): return
-        f = open(self.config_file,'r')
+        try:
+            f = open(self.config_file,'r')
+        except:
+            error_message( _("Unable to create/open config file " + self.config_file + ", cannot store settings.") )
+            return        
         settings = pickle.load(f)
         f.close()
         self.settings(settings)
         
     def _commit_settings_to_file(self):
-        if not os.path.exists(self.config_file): f = open(self.config_file,'w').close() #create first
-        f = open(self.config_file,'w')
+        if not os.path.exists(self.config_file): 
+            try:
+                f = open(self.config_file,'w').close() #create if not exist
+            except:
+                error_message( _("Unable to create config file " + self.config_file + ", cannot store settings.") )
+                return
+        try:
+            f = open(self.config_file,'w')
+        except:
+            error_message( _("Unable to open config file " + self.config_file + ", cannot store settings.") )
+            return
         f.write(pickle.dumps(self.settings()))
         f.close()        
 
