@@ -1,0 +1,6 @@
+README for gedit PerlTidy plugin v1.0
+-------------------------------------
+This plugin has not been tested on Windows.
+Make sure you have the perltidy application installed;
+    the plugin does not yet check for availability on the system
+
