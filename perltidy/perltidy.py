@@ -15,16 +15,11 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, 
 # Boston, MA 02111-1307, USA.
 
-
 import gedit
-
 import pygtk
 pygtk.require('2.0')
-
 import gtk
-
 from gettext import gettext as _
-
 import os
 import tempfile
 import time
@@ -83,21 +78,25 @@ class WindowControl:
         self._action_group.set_sensitive(self._window.get_active_document() != None)
 
     def tidy(self, action):
-        doc = self._window.get_active_document()
-        if not doc : return
+        doc  = self._window.get_active_document()
+        if not doc: return
 
         if self._plugin.settings().get('apply_to_select') and len(doc.get_selection_bounds()): #do we want to apply to, and have, a selection?
             start_iter, end_iter = doc.get_selection_bounds()
         else:            
             start_iter, end_iter = doc.get_start_iter(), doc.get_end_iter()
-        if start_iter.compare(end_iter) == 0 : return #position the same, nothing to operate on
+        if start_iter.compare(end_iter) == 0:
+            return #position the same, nothing to operate on
+
         tidied_text = self.tidy_text( doc.get_text( start_iter, end_iter ) )
+        
+        if tidied_text == '' or tidied_text == None: return
         
         doc.delete(start_iter, end_iter)
         doc.insert(start_iter,tidied_text)
         
     def tidy_text(self, doc_text):
-        if doc_text == None or doc_text == '' : return
+        if doc_text == None or doc_text == '': return
 
         finput  = tempfile.NamedTemporaryFile(delete = False)
         foutput = tempfile.NamedTemporaryFile(delete = False)
@@ -109,7 +108,7 @@ class WindowControl:
 
         s = self._plugin.settings()
 
-        shell_args = ['perltidy',finput.name,'-o',foutput.name]
+        shell_args = ['perltidy',finput.name,'-o',foutput.name,'-se']
 
         if s.get('use_cfg') and not s.get('use_cfg_file') == '':
             if not os.path.exists(s.get('use_cfg_file')):
@@ -117,9 +116,18 @@ class WindowControl:
                 return
             else:        
                 shell_args.append( "-pro="+s.get('use_cfg_file') )
-        
-        subprocess.Popen(shell_args).wait()
 
+        #sbar = self._window.get_statusbar() 
+        #ctx_id = sbar.get_context_id(_("Running perltidy..."))
+        #msg_id = sbar.push(ctx_id, _("Running perltidy..."))
+
+        try:
+            subprocess.Popen(shell_args, stderr=open(os.devnull)).wait()
+        except:
+            error_message(_("Error running perltidy: " + sys.exc_info()[0]))    
+        #finally:
+        #    sbar.remove_message(ctx_id, msg_id)
+            
         foutput = open(foutput.name,'r')
         tidied_text = foutput.read()        
         foutput.close()
