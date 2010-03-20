@@ -149,14 +149,14 @@ class PluginConfig:
             self.widgets.get('use_cfg_file').set_sensitive( widget.get_active() and True or False )
     
     def dialog(self):
-        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_REJECT,gtk.STOCK_OK, gtk.RESPONSE_ACCEPT)
+        buttons = (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,gtk.STOCK_OK, gtk.RESPONSE_OK)
         dialog  = gtk.Dialog("PerlTidy Plugin " + _("configuration"),buttons = buttons)
 
-        def on_btn_click(dialog, response_id, data): 
-            if response_id == gtk.RESPONSE_CLOSE: return # not triggered by msgbox close
-            if response_id == gtk.RESPONSE_ACCEPT:
-                data.get('parent')._save_settings()
-            data.get('dialog').destroy()      
+        def on_btn_click(dialog, response_id, data):
+            if response_id == gtk.RESPONSE_OK:
+                save_ok = data.get('parent')._save_settings()
+            if save_ok and response_id != gtk.RESPONSE_CLOSE:
+                data.get('dialog').destroy()      
         
         self.settings()        
 
@@ -217,6 +217,7 @@ class PluginConfig:
             return
         self.settings(conf)    
         self._commit_settings_to_file()
+        return 1
     
     def _load_settings_from_file(self):
         if not os.path.exists(self.config_file): return
