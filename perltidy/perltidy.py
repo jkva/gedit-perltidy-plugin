@@ -108,7 +108,7 @@ class WindowControl:
 
         s = self._plugin.settings()
 
-        shell_args = ['perltidy',finput.name,'-o',foutput.name,'-se']
+        shell_args = ['perltidy',finput.name,'-o',foutput.name,'-q','-nst']
 
         if s.get('use_cfg') and not s.get('use_cfg_file') == '':
             if not os.path.exists(s.get('use_cfg_file')):
