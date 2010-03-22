@@ -116,6 +116,8 @@ class WindowControl:
                 return
             else:        
                 shell_args.append( "-pro="+s.get('use_cfg_file') )
+        else:
+            shell_args.append( "-npro" )
 
         #sbar = self._window.get_statusbar() 
         #ctx_id = sbar.get_context_id(_("Running perltidy..."))
